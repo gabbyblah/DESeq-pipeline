@@ -1,4 +1,4 @@
-# DESeq-pipeline.r
+# DESeq-pipeline
 A single command-line R script that runs a DESeq2 differential expression analysis from a counts table &amp; sample metadata file and produces an annotated results table plus three figures (PCA, heatmap, volcano plot)
 
 Works with any organism that has a Bioconductor org.*.db.eg annotation package - defaults to rhesus macaque (*Macaca mulatta*), but the annotation database & gene-ID type are configurable from the command line.
