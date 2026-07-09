@@ -100,7 +100,7 @@ install.packages("BiocManager")
 BiocManager::install(c("DESeq2", "org.Mmu.eg.db"))
 install.packages(c("ggplot2", "pheatmap", "RColorBrewer", "ggrepel"))
 ```
-*You must install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument - annotationDbi packages do NOT auto-install. This installs the default Rhesus macaque package - ensure you have the correct annotation package.
+*You must install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument - annotationDbi packages do NOT auto-install. 
 
 # Credits
 This pipeline relies on the following open-source R/Bioconductor packages:
