@@ -48,11 +48,11 @@ Rscript deseq-pipeline.r data/counts.csv data/meta.csv -o results/cohort1
 ```
 ```bash
 # human data, Ensembl IDs
-Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv -o human -d org.HS.eg.db -k EMSEMBL
+Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv -o human -d org.HS.eg.db -k EMSEMBL -c Treatment -r Untreated
 ```
 ```bash
 # mouse data, Entrez IDs
-Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv --database org.Mm.eg.db --keytype ENTREZID
+Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv --database org.Mm.eg.db --keytype ENTREZID --condition grouping -r control
 ```
 
 # Input Formats
