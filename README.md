@@ -117,6 +117,7 @@ Rscript pipeline.r <counts.csv> <metadata.csv> [options]
 ```
 
 |Flag|Default|Description|
+|---|---|---|
 |-o / --outdir|results/|Where outputs will be written|
 |-d / --database|org.Mmu.eg.db|Bioconductor annotation package (DESeq stage)|
 |-k / --keytype|ENSEMBL|Gene ID type (DESeq stage)|
