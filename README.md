@@ -13,7 +13,7 @@ Works with any organism that has a Bioconductor org.*.db.eg annotation package -
 The script installs any missing R packages automatically on first run (*requires an internet connection*)
 
 # Outputs
-All written to the specified output directory (default: results/)
+All written to the specified output directory with -o / --outdir (default: results/)
 
 | Output | Description |
 |---|---|
@@ -24,31 +24,35 @@ All written to the specified output directory (default: results/)
 
 # Usage
 ```bash
-Rscript deseq-pipeline.r <counts.csv> <metadata.csv> <output_dir> <org_db> <keytype>
+Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
 ```
 
-| Position | Argument | Default | Description |
+| Flag | Argument | Default | Description |
 |---|---|---|---|
 |1|counts.csv|data/counts.csv|Counts matrix|
 |2|metadata.csv|data/meta.csv|Sample metadata|
-|3|output_dir|results/|Where outputs are written|
-|4|org_db| org.Mmu.eg.db|Bioconductor annotation package for specified organism|
-|5|keytype|ENSEMBL|Gene ID type used in counts file|
+|3|-o / --outdir|results/|Where outputs are written|
+|4|-d / --database| org.Mmu.eg.db|Bioconductor annotation package for specified organism|
+|5|-k / --keytype|ENSEMBL|Gene ID type used in counts file|
+|6|-c / --condition|Condition|Title of your grouping column in metadata file|
+|7|-r / --reference|Control|Baseline to which all conditions will be compared|
+|8|-f / --mincount|10|Minimum total count across samples to keep a gene|
 
-*Arugments are positional, so in order to set a later one you must supply all earlier arguments*
+*Arugments are case sensitive, especially -r & -c, so check your metadata file & ensure your cases match your arguments*
+*Be sure to set -c if your metadata column for condition is named something else, i.e. 'group,' 'condition,' 'treatment'*
 
 # Examples
 ```bash
 # macaque, Ensembl IDs (all defaults)
-Rscript deseq-pipeline.r data/counts.csv data/meta.csv results/cohort1
+Rscript deseq-pipeline.r data/counts.csv data/meta.csv -o results/cohort1
 ```
 ```bash
 # human data, Ensembl IDs
-Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv results/human org.HS.eg.db EMSEMBL
+Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv -o human -d org.HS.eg.db -k EMSEMBL
 ```
 ```bash
 # mouse data, Entrez IDs
-Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv results/mouse org.Mm.eg.db ENTREZID
+Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv --database org.Mm.eg.db --keytype ENTREZID
 ```
 
 # Input Formats
@@ -58,7 +62,7 @@ Counts CSV  - genes as rows, samples as columns, first column has gene ID used a
 |---|---|---|---|---|---|---|---|---|
 |ENSEMMUG00000000001|12|40|8|2|145|55|67|8|
 
-Metadata CSV -  samples as rows, one row per sample, first column is sample ID (must match counts column names); must include a column named *condition*:
+Metadata CSV -  samples as rows, one row per sample, first column is sample ID (must match counts column names); if you do not have a column named *Condition*, ensure you set your condition column name with -c - this IS case sensitive, so if your condition column is named 'condition' with a lowercase 'c', you must set -c condition:
 |Samples|condition|
 |---|---|
 |C1|Control|
@@ -71,16 +75,12 @@ Metadata CSV -  samples as rows, one row per sample, first column is sample ID (
 |D4|Disease|
 
 # Additional Notes
-- The metadata file must have a column literally named *condition*
-- That condition column has a level literally named *Control*, used as the baseline (so log2foldchange is relative to Control)
-- Sample names in the counts columns exactly match the metadata sample IDs (case sensitive)
-- The gene ID type in the counts file matches the keytype argument and is valid for the chosen annotation package
+- Sample names in the counts columns exactly match the metadata sample IDs (case sensitive).
+- The gene ID type in the counts file matches the keytype argument and is valid for the chosen annotation package.
 - Gene symbol coverage varies by organism; for macaque it is incomplete, and many IDs will appear unannotated in the figures. Each figure only shows gene names that are annotated.
-- Low-count genes (row sum <= 10) are filtered before analysis
+- Low-count genes (row sum <= 10; change with -f) are filtered before analysis.
 - The annotation database and counts ID type must be consistent - passing an annotation package for the wrong organism will error during symbol mapping.
-- Passing a distinct directory per run keeps results from overwriting each other
-
-*To use a different baseline or condition column, edit the relevel() line & design formula in the script*
+- Passing a distinct directory per run keeps results from overwriting each other.
 
 # Requirements
 R(>=4.0). The script auto-installs missing packages on the first run, but you can pre-install them:
@@ -89,7 +89,7 @@ install.packages("BiocManager)
 BiocManager::install(c("DESeq2", "org.*.eg.db"))
 install.packages(c("ggplot2", "pheatmap", "RColorBrewer", "ggrepel"))
 ```
-Install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument.
+You must install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument - annotationDbi packages do NOT auto-install.
 
 # Credits
 This pipeline relies on the following open-source R/Bioconductor packages:
