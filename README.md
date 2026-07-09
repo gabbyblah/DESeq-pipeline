@@ -22,6 +22,8 @@ All written to the specified output directory with -o / --outdir (default: resul
 |heatmap.png|Heatmap of the top 30 significant genes, row-scaled with condition annotation|
 |volcano.png|Volcano plot with the top 15 significant named genes by fold change magnitude|
 
+Note that in the future I plan to add WGCNA & GO enrichment, so additional files named 'intermediate' will be generated with every run within your output directory. You can delete these for now (will auto-delete in the future).
+
 # Usage
 ```bash
 Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
