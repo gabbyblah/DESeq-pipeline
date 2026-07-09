@@ -28,14 +28,16 @@ Note that in the future I plan to add WGCNA & GO enrichment, so additional files
 ```bash
 Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
 ```
-# Positional Arguments
+
+Positional Arguments
 
 | Position | Argument | Default | Description |
 |---|---|---|---|
 |1|counts.csv|data/counts.csv|Counts matrix|
 |2|metadata.csv|data/meta.csv|Sample metadata|
 
-# Flag Arguments
+Flag Arguments
+
 | Flag | Default | Description |
 |---|---|---|
 |-o / --outdir|results/|Where outputs are written|
