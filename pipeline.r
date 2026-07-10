@@ -33,14 +33,20 @@ option_list <- list(
               help = "Reference (baseline) level [default: %default]"),
   make_option(c("-f", "--mincount"), type = "integer", default = 10,
               help = "Minimum total count to keep a gene [default: %default]"),
-  make_option(c("-p", "--softpower"), type = "integer", default = NULL,
+  make_option(c("-s", "--softpower"), type = "integer", default = NULL,
               help = "WGCNA soft-thresholding power. If unset, auto-selects [default: auto]"),
   make_option(c("-n", "--ngenes"), type = "integer", default = 5000,
               help = "WGCNA: number of top-variable genes [default: %default]"),
   make_option(c("-t", "--kmethreshold"), type = "double", default = NULL,
               help = "WGCNA: kME cutoff for hub genes. If unset, uses --maxhubs [default: top-N]"),
   make_option(c("-m", "--maxhubs"), type = "integer", default = 30,
-              help = "WGCNA: max hub genes to report [default: %default]")
+              help = "WGCNA: max hub genes to report [default: %default]"),
+  make_option(c("-a", "--ont"), type = "character", default = "BP",
+              help = "GO ontology: BP, MF, CC, or ALL [default: %default]"),
+  make_option(c("-p", "--pvalue"), type = "double", default = 0.05,
+              help = "GO adjusted p-value cutoff [default: %default]"),
+  make_option(c("-g", "--showgoterms"), type = "integer", default = 20,
+              help = "GO: number of top terms to show in plots [default: %default]")
 )
 
 parser <- OptionParser(
@@ -77,10 +83,15 @@ run_step("deseq-pipeline.r",
 # ---- Step 2: WGCNA (build args, adding optional flags only when set) ----
 wgcna_args <- c("-o", o$outdir, "-c", o$condition,
                 "-n", o$ngenes, "-m", o$maxhubs)
-if (!is.null(o$softpower))    wgcna_args <- c(wgcna_args, "-p", o$softpower)
+if (!is.null(o$softpower))    wgcna_args <- c(wgcna_args, "-s", o$softpower)
 if (!is.null(o$kmethreshold)) wgcna_args <- c(wgcna_args, "-t", o$kmethreshold)
 
 run_step("wgcna.r", wgcna_args, "WGCNA co-expression")
+
+run_step("go.r",
+         c("-o", o$outdir, "-d", o$database, "-k", o$keytype,
+           "-a", o$ont, "-p", o$pvalue, "-g", o$showgoterms),
+         "GO enrichment")
 
 # ---- Step 3: cleanup, only reached on full success ----
 intermediate <- file.path(o$outdir, "intermediate")
