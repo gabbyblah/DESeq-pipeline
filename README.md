@@ -70,7 +70,7 @@ outdir/
 
 # deseq.r - Differential Expression
 ```bash
-Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
+Rscript deseq.r <counts.csv> <metadata.csv> [options]
 ```
 
 **Positional Arguments**
