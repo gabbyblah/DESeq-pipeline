@@ -1,20 +1,23 @@
 # RNAseq-analysis-pipeline
-A command-line RNA-seq analysis pipeline in R. Runs DESeq2 differential expression, then WGCNA co-expression network analysis, producing annotated tables and figures at each stage. 
+A command-line RNA-seq analysis pipeline in R. Runs DESeq2 differential expression, WGCNA co-expression network analysis, and GO enrichmernt on a counts matrix & metadata file, producing annotated tables and figures at each stage. 
 
 Three scripts:
-- **`deseq-pipeline.r`** - differential expression (DESeq2): results table + PCA plot, heatmap, & volcano plot
+- **`deseq.r`** - differential expression (DESeq2): results table + PCA plot, heatmap, & volcano plot
 - **`wgcna.r`** - co-expression network (WGCNA): module detection, hub genes + soft-threshold, dendrogram, & module-trait figures
-- **`pipeline.r`** - runs both scripts in sequence from raw counts matrix, then cleans up intermediate files
+- **`go.r`** - gene ontology (GO) enrichment on the condition-associated module: enrichment table + dotplot, barplot, cneplot & heatplot
+- **`pipeline.r`** - runs all three stages in sequence from raw counts matrix and metadata file, then removes intermediate files
 
 Works with any organism that has a Bioconductor org.*.eg.db annotation package - defaults to rhesus macaque (*Macaca mulatta*), fully configurable via command-line flags.
 
+The scripts auto-install any missing R packages on the first run (*requires an internet connection*).
+
 **Quick Start (full pipeline)**
 
-Run differential expression *and* co-expression in one command:
+Run all three stages in one command:
 ```bash
 Rscript pipeline.r <counts.csv> <metadata.csv> [options]
 ```
-This runs `deseq-pipeline.r`, then `wgcna.r`, then removes the intermediate files. To run a single stage instead, call that script directly (see below). 
+This runs `deseq-pipeline.r`, then `wgcna.r`, then `go.r`, and removes intermediate files when finished. To run a single stage on its own, call that script directly (see below). 
 
 ```bash
 # full pipeline, all defaults (macaque, Ensembl IDs)
@@ -24,10 +27,48 @@ Rscript pipeline.r data/counts.csv data/meta.csv -o results/cohort1
 # full pipeline, human data with custom column/reference and WGCNA tuning
 Rscript pipeline.r data/counts.csv data/meta.csv -o results/human -d org.Hs.eg.db -c Treatment -r Untreated -m 20
 ```
-  Note: `wgcna.r` reads the output of `deseq-pipeline.r`, so it must run *after* DESeq with the same `--outdir`. `pipeline.r` handles this ordering automatically. If a stage fails, the pipeline halts and keeps the intermediate files for debugging.
+  Note: The stages run in order as each script reads the previous stage's output. `pipeline.r` handles this automatically. If a stage fails, the pipeline      halts and keeps the intermediate files for debugging (in a folder `outdir/intermidiate`).
+  
+# `pipeline.r` - Full Pipeline Orchestrator
+Runs all three scripts in sequence, then removes intermediate files. Accepts every stage's parameters and passes each to the appropriate stage.
+
+```bash
+Rscript pipeline.r <counts.csv> <metadata.csv> [options]
+```
+
+|Flag|Default|Description|
+|---|---|---|
+|-o / --outdir|results/|Where outputs will be written|
+|-d / --database|org.Mmu.eg.db|Bioconductor annotation package|
+|-k / --keytype|ENSEMBL|Gene ID type|
+|-c / --condition|condition|Title of your grouping column in metadata file|
+|-r / --reference|Control|Baseline to which all conditions will be compared|
+|-f / --mincount|10|Minimum total count across samples to keep a gene|
+|-p / --softpower|auto|Soft-thresholding power; auto-selects if unset|
+|-n / --ngenes|5000|Number of top-variable genes to use|
+|-t / --kmethreshold|(none)|kME cutoff for hub genes; uses --maxhubs if unset|
+|-m / --maxhubs|30|Max hub genes to report|
+|-a / --ont|BP|GO Ontology: BP, MF, CC, or ALL|
+|-p / --pvalue|0.05|Adjusted p-value cutoff for enrichment|
+|-g / --showgoterms|20|Number of top terms to show in the plots|
+
+If any stage fails, the pipeline halts and keeps the intermediate files so you may debug or resume. Intermediate files are only removed after successful run.
+
+# Output Structure
+Each stage writes to its own subdirectory under --outdir:
+
+outdir/
+
+├── DESeq/          DE_results.csv, PCA.png, heatmap.png, volcano.png
+
+├── WGCNA/          module + hub figures and tables (see below)
+
+├── GO/             GO enrichment table and figures
+
+└── intermediate/   internal handoff files (removed by pipeline.r on success)
 
 
-# DESeq-pipeline.r - Differential Expression
+# deseq.r - Differential Expression
 ```bash
 Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
 ```
@@ -50,9 +91,7 @@ Rscript deseq-pipeline.r <counts.csv> <metadata.csv> [options]
 |-r / --reference|Control|Baseline to which all conditions will be compared|
 |-f / --mincount|10|Minimum total count across samples to keep a gene|
 
-**Outputs**
-
-All written to the specified output directory with -o / --outdir (default: results/)
+**Outputs (in `outdir/DESeq`)**
 
 | Output | Description |
 |---|---|
@@ -61,22 +100,8 @@ All written to the specified output directory with -o / --outdir (default: resul
 |heatmap.png|Heatmap of the top 30 significant genes, row-scaled with condition annotation|
 |volcano.png|Volcano plot with the top 15 significant named genes by fold change magnitude|
 
-# Examples
-```bash
-# macaque, Ensembl IDs (all defaults)
-Rscript deseq-pipeline.r data/counts.csv data/meta.csv 
-```
-```bash
-# human data, Ensembl IDs, condition column titled 'Treatment' with reference level 'Untreated'
-Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv -o human -d org.Hs.eg.db -k ENSEMBL -c Treatment -r Untreated
-```
-```bash
-# mouse data, Entrez IDs, condition column titled 'grouping' with reference level 'control'
-Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv --database org.Mm.eg.db --keytype ENTREZID --condition grouping -r control
-```
-
 # WGCNA.r - Co-Expression Network Analysis
-Builds a WGCNA co-expression network from the DESeq output, detects gene modules, identifies the module most correlated with condition, and reports its hub genes.
+Builds a WGCNA co-expression network from the DESeq output, detects gene modules, identifies the module most correlated with condition, and reports its hub genes. Requires a completed `deseq.r` run in the same `--outdir`
 
 ```bash
 Rscript wgcna.r [options]
@@ -93,7 +118,7 @@ Rscript wgcna.r [options]
 |-t / --kmethreshold|(none)|kME cutoff for hub genes; uses --maxhubs if unset|
 |-m / --maxhubs|30|Max hub genes to report|
 
-# Outputs
+**Outputs (in `outdir/WCGNA)**
 
 |Output|Description|
 |---|---|
@@ -109,27 +134,39 @@ Rscript wgcna.r [options]
 - Hub genes default to the top --maxhubs genes by module membership (kME). If --kmethreshold is set, hubs are instead genes above that kME cutoff, capped at --maxhubs.
 - The condition-associated module is selected automatically as the module with the strongest correlation to condition (excluding the unassigned "grey" module).
 
-# Pipeline.r - Full Pipeline Orchestrator
-Runs `deseq-pipeline.r` then `wgcna.r`, and then removes intermediate files. Accepts all DESeq flags + WGCNA parameters, passed through to the appropriate stage. 
+# `go.r` - GO Enrichment
+
+Runs Gene Ontology over-representation analysis (clusterProfiler) on the WGCNA condition-associated module. Requires a completed `wgcna.r` run in the same `--outdir`.
 
 ```bash
-Rscript pipeline.r <counts.csv> <metadata.csv> [options]
+Rscript go.r [options]
 ```
+
+**Flag Arguments**
 
 |Flag|Default|Description|
 |---|---|---|
-|-o / --outdir|results/|Where outputs will be written|
-|-d / --database|org.Mmu.eg.db|Bioconductor annotation package (DESeq stage)|
-|-k / --keytype|ENSEMBL|Gene ID type (DESeq stage)|
-|-c / --condition|condition|Title of your grouping column in metadata file (DESeq stage)|
-|-r / --reference|Control|Baseline to which all conditions will be compared (DESeq stage)|
-|-f / --mincount|10|Minimum total count across samples to keep a gene (DESeq stage)|
-|-p / --softpower|auto|Soft-thresholding power; auto-selects if unset (WGCNA stage)|
-|-n / --ngenes|5000|Number of top-variable genes to use (WGCNA stage)|
-|-t / --kmethreshold|(none)|kME cutoff for hub genes; uses --maxhubs if unset (WGCNA stage)|
-|-m / --maxhubs|30|Max hub genes to report (WGCNA stage)|
+|-o / --outdir|results/|base output directory (must contain WGCNA output)|
+|-d / --database|org.Mmu.eg.db|Bioconductor annotation package|
+|-k / --keytype|ENSEMBL|Gene ID type in the counts data|
+|-a / --ont|BP|GO Ontology: BP, MF, CC, or ALL|
+|-p / --pvalue|0.05|Adjusted p-value cutoff for enrichment|
+|-g / --showgoterms|20|Number of top terms to show in the plots|
 
-If any stage fails, the pipeline halts and keeps the intermediate files so you may debug or resume. Intermediate files are only removed after successful run.
+**Outputs (in `results/GO`)**
+
+|Output|Description|
+|---|---|
+|GO_results.csv|Enrichment table: terms, gene counts, p-values, member genes|
+|GO_dotplot.png|Top terms by gene ratio, colored by p-value|
+|GO_barplopt.png|Top terms as bars|
+|GO_cnetplot.png|Gene-term network showing which genes drive which terms|
+|GO_heatplot.png|Gene-term membership grid|
+
+**Notes**
+
+- GO enrichment depends heavily on annotation completeness - sparsely annotated organisms (including the default, macaque) may return few or no enriched terms even for real modules; the script reports this and exits cleanly.
+- Individual figures are generated independently - if one fails, the others still complete.
 
 # Input Formats
 **Counts CSV** - genes as rows, samples as columns. First column carries gene ID (used as row names); first row is sample names.
@@ -166,13 +203,31 @@ If your grouping is not named `condition`, set it with `-c`. This is **case-sens
 - Single-factor designs only (one condition column). Multifactor models (i.e. controlling for batch) will be supported in the future.
 - Plot titles and colors in the DESeq figures assume two groups. Other group counts still run but may use default colors.
 
+# Examples
+```bash
+# macaque data, Ensembl IDs (all defaults)
+Rscript deseq-pipeline.r data/counts.csv data/meta.csv 
+```
+```bash
+# human data, Ensembl IDs, condition column titled 'Treatment' with reference level 'Untreated'
+Rscript deseq-pipeline.r ~/counts_sample.csv ~/metadata.csv -o human -d org.Hs.eg.db -k ENSEMBL -c Treatment -r Untreated
+```
+```bash
+# mouse data, Entrez IDs, condition column titled 'grouping' with reference level 'control'
+Rscript deseq-pipeline.r data/counts.csv Downloads/meta.csv --database org.Mm.eg.db --keytype ENTREZID --condition grouping -r control
+```
+```bash
+# macaque data, Ensembl IDs, count threshold 8, 50 max hub genes, all GO ontology terms
+Rscript deseq-pipeline.r data/counts.csv data/meta.csv -f 8 -m 50 -a ALL
+```
+
 # Requirements
 R(>=4.0). The script auto-installs missing packages on the first run, but you can pre-install them:
 
 ```r
 install.packages("BiocManager")
-BiocManager::install(c("DESeq2", "org.Mmu.eg.db", "WGCNA", "SummarizedExperiment"))
-install.packages(c("optparse", "ggplot2", "pheatmap", "RColorBrewer", "ggrepel"))
+BiocManager::install(c("DESeq2", "org.Mmu.eg.db", "WGCNA", "SummarizedExperiment", "clusterProfiler"))
+install.packages(c("optparse", "ggplot2", "pheatmap", "RColorBrewer", "ggrepel", "igraph"))
 ```
 *You must install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument - annotationDbi packages do NOT auto-install. 
 
@@ -182,9 +237,11 @@ This pipeline relies on the following open-source R/Bioconductor packages:
 |---|---|
 |DESeq2|Differential expression analysis|
 |WGCNA|Weighted gene co-expression network analysis|
+|clusterProfiler|GO enrichment analysis|
 |AnnotationDbi + org.*.eg.db|Gene ID to symbol matching|
 |ggplot2, ggrepel|PCA & volcano plots|
 |pheatmap, RColorBrewer|Heatmap|
+|igraph|Hub gene network|
 |optparse|Command-line argument parsing|
 
 # Citation
@@ -193,6 +250,8 @@ If you use this pipeline, please cite the underlying methods!
   DESeq2 - Love, M.I., Huber, W., Anders, S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2 Genome Biology 15(12):550 (2014)
 
   WGCNA - Langfelder, P., Horvath, S. (2008). WGCNA: an R package for weighted correlation network analysis. BMC Bioinformatics 9:559.
+
+  clusterProfiler - Wu, T., Hu, E., Xu, S., et al. (2021). clusterProfiler 4.0: A universal enrichment tool for interpreting omics data. The Innovation 2(3):100141.
 
 # License
 Released under MIT License - see LICENSE for details.
