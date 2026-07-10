@@ -1,5 +1,5 @@
 # RNAseq-analysis-pipeline
-A command-line RNA-seq analysis pipeline in R. Runs DESeq2 differential expression, then WGCNA co-expression network analysis, producing annotated tables and publication-style figures at each stage. 
+A command-line RNA-seq analysis pipeline in R. Runs DESeq2 differential expression, then WGCNA co-expression network analysis, producing annotated tables and figures at each stage. 
 
 Three scripts:
 - **`deseq-pipeline.r`** - differential expression (DESeq2): results table + PCA plot, heatmap, & volcano plot
