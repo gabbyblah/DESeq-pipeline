@@ -1,4 +1,4 @@
-# Version 3
+# Version 4
 options(repos = c(CRAN = "https://cloud.r-project.org"))
 ensure_pkg <- function(pkg, bioc = FALSE) {
   if (!base::requireNamespace(pkg, quietly = TRUE)) {
@@ -56,6 +56,8 @@ min_count      <- opt$options$mincount
 dir.create(outdir, showWarnings = FALSE, recursive = TRUE)
 intermediate <- file.path(outdir, "intermediate")
 dir.create(intermediate, showWarnings = FALSE, recursive = TRUE)
+deseq_dir <- file.path(outdir, "DESeq")
+dir.create(deseq_dir, showWarnings = FALSE, recursive = TRUE)
 
 if (!file.exists(counts_file)) stop(red(paste("Counts file does not exist:",
                                           counts_file)))
@@ -138,8 +140,8 @@ res_df$symbol <- tryCatch(
 res_df$label <- ifelse(is.na(res_df$symbol), rownames(res_df), res_df$symbol)
 msg_step("Annotation completed.")
 
-write.csv(as.data.frame(res_df), file = file.path(outdir, "DE_results.csv"))
-msg_ok("Annotated results saved to: ", file.path(outdir, "DE_results.csv"))
+write.csv(as.data.frame(res_df), file = file.path(deseq_dir, "DE_results.csv"))
+msg_ok("Annotated results saved to: ", file.path(deseq_dir, "DE_results.csv"))
 
 # Generate PCA plot
 msg_step("Generating PCA plot...")
@@ -155,8 +157,8 @@ pca_plot <- suppressMessages(plotPCA(vsdata, intgroup = condition_col)) + # Crea
         legend.position = "right",
         panel.grid = element_blank()) # remove grid lines
 
-ggsave(file.path(outdir, "PCA.png"), pca_plot, width = 7, height = 6, dpi = 300)
-msg_ok("PCA plot saved to: ", file.path(outdir, "PCA.png"))
+ggsave(file.path(deseq_dir, "PCA.png"), pca_plot, width = 7, height = 6, dpi = 300)
+msg_ok("PCA plot saved to: ", file.path(deseq_dir, "PCA.png"))
 
 # Generate heatmap of top differentially expressed genes
 msg_step("Generating heatmap of top 30 differentially expressed genes...")
@@ -169,7 +171,7 @@ row_labels <- res_df[top_genes, "label"] # Get gene symbols for top genes
 
 annotation_col <- data.frame(condition = meta[[condition_col]], row.names = rownames(meta))
 
-png(file.path(outdir, "heatmap.png"), width = 8, height = 10, units = "in",
+png(file.path(deseq_dir, "heatmap.png"), width = 8, height = 10, units = "in",
     res = 300)
 pheatmap(mat,
          labels_row = row_labels,
@@ -178,7 +180,7 @@ pheatmap(mat,
          show_colnames = TRUE,
          main = "Top 30 Differentially Expressed Genes")
 invisible(dev.off())
-msg_ok("Heatmap saved to: ", file.path(outdir, "heatmap.png"))
+msg_ok("Heatmap saved to: ", file.path(deseq_dir, "heatmap.png"))
 
 # Generate volcano plot
 msg_step("Generating volcano plot...")
@@ -210,9 +212,9 @@ volcano <- ggplot(res_df, aes(x = log2FoldChange, y = -log10(padj),
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         panel.grid = element_blank())
 
-suppressWarnings(ggsave(file.path(outdir, "volcano.png"), volcano, width = 8,
-       height = 7, dpi = 300))
-msg_ok("Volcano plot saved to: ", file.path(outdir, "volcano.png"))
+suppressWarnings(ggsave(file.path(deseq_dir, "volcano.png"), volcano, width = 8,
+                        height = 7, dpi = 300))
+msg_ok("Volcano plot saved to: ", file.path(deseq_dir, "volcano.png"))
 
 saveRDS(vsdata, file.path(intermediate, "vsdata.rds"))
 saveRDS(meta, file.path(intermediate, "meta.rds"))
