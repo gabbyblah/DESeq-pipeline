@@ -25,7 +25,7 @@ option_list <- list(
                     help = "Output directory (must contain DESeq pipeline output) [default: %default]"),
         make_option(c("-c", "--condition"), type = "character", default = "condition",
                     help = "Name of metadata column defining the comparison [default: %default]"),
-        make_option(c("-p", "--softpower"), type = "integer", default = NULL,
+        make_option(c("-s", "--softpower"), type = "integer", default = NULL,
                     help = "Soft-thresholding power. If unset, auto-selects (pickSoftThreshold estimate, else sample-size default)"),
         make_option(c("-n", "--ngenes"), type = "integer", default = 5000,
                     help = "Number of top-variable genes to use [default: %default]"),
@@ -52,9 +52,13 @@ kme_threshold <- opt$kmethreshold
 max_hubs      <- opt$maxhubs
 
 intermediate <- file.path(outdir, "intermediate")
+wgcna_dir <- file.path(outdir, "WGCNA")
+dir.create(wgcna_dir, showWarnings = FALSE, recursive = TRUE)
 
 ensure_pkg("SummarizedExperiment", bioc = TRUE)
 ensure_pkg("WGCNA", bioc = TRUE)
+ensure_pkg("ggplot2")
+ensure_pkg("igraph")
 cor <- WGCNA::cor
 
 options(stringsAsFactors = FALSE)
@@ -69,7 +73,7 @@ msg_step("Starting WGCNA analysis...")
 
 meta <- readRDS(file.path(intermediate, "meta.rds"))
 vsdata <- readRDS(file.path(intermediate, "vsdata.rds"))
-res_df <- read.csv(file.path(outdir, "DE_results.csv"), row.names = 1)
+res_df <- read.csv(file.path(outdir, "DESeq", "DE_results.csv"), row.names = 1)
 vst_mat <- assay(vsdata) 
 vars <- apply(vst_mat, 1, var)
 top <- names(sort(vars, decreasing = TRUE))[1:n_genes]
@@ -98,7 +102,7 @@ if (!is.null(soft_power)) {
   msg_step("No power reached scale-free fit; using fallback power 9")
 }
 
-png(file.path(outdir, "soft_threshold.png"), width = 10, height = 5, units = "in", res = 300)
+png(file.path(wgcna_dir, "soft_threshold.png"), width = 10, height = 5, units = "in", res = 300)
 par(mfrow = c(1, 2))   # two plots side by side
 # left: scale-free fit vs power
 plot(sft$fitIndices[, 1], -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
@@ -113,7 +117,7 @@ plot(sft$fitIndices[, 1], sft$fitIndices[, 5],
      type = "n", main = "Mean connectivity")
 text(sft$fitIndices[, 1], sft$fitIndices[, 5], labels = powers, col = "red")
 invisible(dev.off())
-msg_ok("Soft-threshold plot saved to: ", file.path(outdir, "soft_threshold.png"))
+msg_ok("Soft-threshold plot saved to: ", file.path(wgcna_dir, "soft_threshold.png"))
 
 net <- blockwiseModules(datExpr,
                         power = softPower,
@@ -127,7 +131,7 @@ net <- blockwiseModules(datExpr,
 moduleColors <- labels2colors(net$colors)
 
 # Figure 3: gene dendrogram with module colors
-png(file.path(outdir, "module_dendrogram.png"), width = 20, height = 6, units = "in", res = 300)
+png(file.path(wgcna_dir, "module_dendrogram.png"), width = 20, height = 6, units = "in", res = 300)
 plotDendroAndColors(
   net$dendrograms[[1]],
   moduleColors[net$blockGenes[[1]]],
@@ -139,7 +143,7 @@ plotDendroAndColors(
   main = "Gene clustering dendrogram and module assignment"
 )
 invisible(dev.off())
-msg_ok("Module dendrogram saved to: ", file.path(outdir, "module_dendrogram.png"))
+msg_ok("Module dendrogram saved to: ", file.path(wgcna_dir, "module_dendrogram.png"))
 
 MEs <- moduleEigengenes(datExpr, moduleColors)$eigengenes
 MEs <- orderMEs(MEs)
@@ -154,7 +158,7 @@ print(cbind(cor = moduleTraitCor, p = moduleTraitP))
 textMatrix <- paste0(signif(moduleTraitCor, 2), "\n(", signif(moduleTraitP, 1), ")")
 dim(textMatrix) <- dim(moduleTraitCor)
 
-png(file.path(outdir, "module_trait_heatmap.png"), width = 6, height = 10, units = "in", res = 300)
+png(file.path(wgcna_dir, "module_trait_heatmap.png"), width = 6, height = 10, units = "in", res = 300)
 par(mar = c(6, 10, 3, 3))   # margins: bottom, left, top, right — room for labels
 labeledHeatmap(
   Matrix = moduleTraitCor,
@@ -170,7 +174,7 @@ labeledHeatmap(
   main = "Module-condition relationships"
 )
 invisible(dev.off())
-msg_ok("Module-trait heatmap saved to: ", file.path(outdir, "module_trait_heatmap.png"))
+msg_ok("Module-trait heatmap saved to: ", file.path(wgcna_dir, "module_trait_heatmap.png"))
 
 mtc <- moduleTraitCor[rownames(moduleTraitCor) != "MEgrey", , drop = FALSE]
 mod <- sub("^ME", "", rownames(mtc)[which.max(abs(mtc[, 1]))])
@@ -178,6 +182,27 @@ msg_step("Auto-selected module of interest:", mod)
 
 MM <- cor(datExpr, MEs[, paste0("ME", mod)], use = "p")
 rownames(MM) <- colnames(datExpr)
+
+mod_genes <- colnames(datExpr)[moduleColors == mod]
+geneSig <- cor(datExpr[, mod_genes], condition_num, use = "p")   # each gene's correlation with condition
+mm_mod  <- MM[mod_genes, 1]                                       # module membership for the same genes
+
+mmgs_df <- data.frame(kME = mm_mod, geneSignificance = geneSig[, 1], gene = mod_genes)
+
+png(file.path(wgcna_dir, "hub_kME_vs_significance.png"), width = 7, height = 6, units = "in", res = 300)
+print(
+  ggplot(mmgs_df, aes(x = abs(kME), y = abs(geneSignificance))) +
+  geom_point(color = mod, alpha = 0.7, size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "grey40", linetype = "dashed") +  # trend line
+  labs(x = paste0("Module membership (kME) in ", mod),
+       y = "Gene significance for condition",
+       title = paste0("Module membership vs. gene significance: ", mod)) +
+  theme_bw(base_size = 13) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        panel.grid = element_blank())
+)
+invisible(dev.off())
+msg_ok("kME vs significance plot saved to: ", file.path(wgcna_dir, "hub_kME_vs_significance.png"))
 
 # rank all genes in the module by module membership (kME)
 if (!is.null(kme_threshold)) {
@@ -201,12 +226,42 @@ if (length(hub) == 0) {
 
 hub_df <- res_df[hub, c("symbol", "log2FoldChange", "padj")]
 hub_df$moduleMembership <- MM[hub, 1]
-write.csv(hub_df, file.path(outdir, "hub_genes.csv"))
-msg_ok("Hub genes saved to:", file.path(outdir, "hub_genes.csv"))
+write.csv(hub_df, file.path(wgcna_dir, "hub_genes.csv"))
+msg_ok("Hub genes saved to:", file.path(wgcna_dir, "hub_genes.csv"))
+
+# Figure 5: hub gene co-expression network
+
+hub_expr <- datExpr[, hub]                    # expression of just the hub genes
+hub_cor  <- cor(hub_expr, use = "p")          # pairwise correlation among hubs
+hub_labels <- res_df[hub, "label"]            # gene symbols for node labels
+
+# build the network: keep only strong connections
+adj <- abs(hub_cor)
+adj[adj < 0.7] <- 0                    # RAISED threshold: 0.7 not 0.5, fewer edges
+diag(adj) <- 0
+
+g <- graph_from_adjacency_matrix(adj, mode = "undirected", weighted = TRUE)
+V(g)$label <- hub_labels
+
+png(file.path(wgcna_dir, "hub_network.png"), width = 10, height = 10, units = "in", res = 300)
+plot(g,
+     layout = layout_with_fr(g),           # force-directed layout (spreads nodes out)
+     vertex.size = abs(MM[hub, 1]) * 12,    # smaller nodes
+     vertex.color = mod,
+     vertex.frame.color = "grey30",
+     vertex.label.color = "black",
+     vertex.label.cex = 0.7,
+     vertex.label.dist = 1.2,               # push labels OUTSIDE the nodes
+     vertex.label.family = "sans",
+     edge.color = "grey80",
+     edge.width = E(g)$weight,
+     main = paste0("Hub gene co-expression network: ", mod))
+invisible(dev.off())
+msg_ok("Hub network saved to: ", file.path(wgcna_dir, "hub_network.png"))
 
 module_df <- data.frame(gene_id = colnames(datExpr), module = moduleColors)
-write.csv(module_df, file.path(outdir, "module_assignments.csv"), row.names = FALSE)
-msg_ok("Module assignments saved to:", file.path(outdir, "module_assignments.csv"))
+write.csv(module_df, file.path(wgcna_dir, "module_assignments.csv"), row.names = FALSE)
+msg_ok("Module assignments saved to:", file.path(wgcna_dir, "module_assignments.csv"))
 
 selected_genes <- colnames(datExpr)[moduleColors == mod]
 background_genes <- colnames(datExpr)
