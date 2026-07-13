@@ -107,7 +107,7 @@ Builds a WGCNA co-expression network from the DESeq output, detects gene modules
 Rscript wgcna.r [options]
 ```
 
-# Flag Arguments
+**Flag Arguments**
 
 |Flag|Default|Description|
 |---|---|---|
