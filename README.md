@@ -10,6 +10,7 @@ Three scripts:
 Works with any organism that has a Bioconductor org.*.eg.db annotation package - defaults to rhesus macaque (*Macaca mulatta*), fully configurable via command-line flags.
 
 The scripts auto-install any missing R packages on the first run (*requires an internet connection*).
+*You must install the matching annotation package for your samples (eg. org.Hs.eg.db for human, org.Mm.eg.db for mouse) and pass it as the org_db argument - annotationDbi packages do NOT auto-install.*
 
 **Quick Start (full pipeline)**
 
